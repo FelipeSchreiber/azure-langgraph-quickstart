@@ -9,10 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # ---------- Python dependencies ----------
-COPY setup.py ./
-COPY src/ ./src/
+COPY requirements.txt ./
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir .
+    && pip install --no-cache-dir -r requirements.txt
+
+# ---------- application code ----------
+COPY src/ ./src/
 
 # ---------- application code ----------
 COPY agent_config.yaml ./

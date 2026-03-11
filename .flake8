@@ -1,0 +1,5 @@
+[flake8]
+max-line-length = 99
+per-file-ignores =
+    # scripts manipulate sys.path before imports (E402)
+    scripts/*:E402

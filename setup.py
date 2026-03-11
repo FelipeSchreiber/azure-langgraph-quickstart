@@ -19,12 +19,18 @@ setup(
         "typing-extensions>=4.11",
     ],
     extras_require={
+        "gemini": [
+            "langchain-google-genai>=2.0",
+        ],
+        "ibm": [
+            "langchain-ibm>=0.3",
+        ],
         "dev": [
             "pytest>=8",
             "pytest-asyncio>=0.23",
             "httpx",
             "ruff>=0.4",
             "mypy>=1.10",
-        ]
+        ],
     },
 )

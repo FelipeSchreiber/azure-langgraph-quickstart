@@ -13,7 +13,7 @@ Swagger UI is available at /docs (built into FastAPI by default).
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
@@ -98,7 +98,18 @@ async def chat(request: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     messages = result.get("messages", [])
-    reply = messages[-1].content if messages else ""
+    raw_content = messages[-1].content if messages else ""
+
+    # Newer LangChain versions may return a list of content blocks, e.g.:
+    # [{'type': 'text', 'text': '...'}, {'type': 'image', ...}]
+    # Flatten to a plain string so ChatResponse stays valid.
+    if isinstance(raw_content, list):
+        reply = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in raw_content
+        ).strip()
+    else:
+        reply = str(raw_content)
 
     # Count how many ToolMessages were produced (each represents one tool invocation)
     from langchain_core.messages import ToolMessage

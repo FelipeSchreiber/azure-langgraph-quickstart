@@ -55,6 +55,12 @@ class MCPConfig:
 
 
 @dataclass
+class LLMConfig:
+    """Which LLM provider to use and any provider-level overrides."""
+    provider: str = "azure"  # azure | gemini – extensible via LLMFactory.register()
+
+
+@dataclass
 class Metadata:
     owner: str
     version: str
@@ -72,6 +78,7 @@ class AgentConfig:
     top_p: float
     mcp: MCPConfig
     metadata: Metadata
+    llm: LLMConfig = field(default_factory=LLMConfig)
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +151,12 @@ def load_agent_config(path: str | Path | None = None) -> AgentConfig:
         created_at=meta_raw.get("created_at", ""),
     )
 
+    # --- LLM provider ---
+    llm_raw = raw.get("llm", {})
+    llm_config = LLMConfig(
+        provider=llm_raw.get("provider", "azure"),
+    )
+
     return AgentConfig(
         agent_id=raw["agent_id"],
         agent_name=raw["agent_name"],
@@ -154,6 +167,7 @@ def load_agent_config(path: str | Path | None = None) -> AgentConfig:
         top_p=float(raw.get("top_p", 1.0)),
         mcp=MCPConfig(servers=servers),
         metadata=metadata,
+        llm=llm_config,
     )
 
 

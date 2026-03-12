@@ -19,13 +19,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Annotated, Any, Dict, List, Literal
+from typing import Annotated, Any, Dict, List
 
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode
+from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
 
 from src.config import AgentConfig, get_config
@@ -92,20 +92,12 @@ class AgentFactory:
             response: AIMessage = await llm_with_tools.ainvoke(msgs)
             return {"messages": [response]}
 
-        def should_call_tool(s: AgentState) -> Literal["call_tool", "__end__"]:
-            last = s["messages"][-1]
-            return "call_tool" if getattr(last, "tool_calls", None) else "__end__"
-
         builder = StateGraph(AgentState)
         builder.add_node("llm_call", llm_call)
-        builder.add_node("call_tool", tool_node)
+        builder.add_node("tools", tool_node)
         builder.add_edge(START, "llm_call")
-        builder.add_conditional_edges(
-            "llm_call",
-            should_call_tool,
-            {"call_tool": "call_tool", "__end__": END},
-        )
-        builder.add_edge("call_tool", "llm_call")
+        builder.add_conditional_edges("llm_call", tools_condition)
+        builder.add_edge("tools", "llm_call")
         return builder.compile()
 
     # -- public factory method -----------------------------------------------

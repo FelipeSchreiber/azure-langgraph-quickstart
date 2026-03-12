@@ -1,0 +1,18 @@
+# Core dependencies (mirrors setup.py install_requires)
+langgraph>=0.2
+langchain-core>=0.2
+langchain-openai>=0.1
+langchain-mcp-adapters>=0.2
+openai>=1.30
+fastapi>=0.111
+uvicorn[standard]>=0.29
+pyyaml>=6.0
+httpx>=0.27
+typing-extensions>=4.11
+
+# Gemini provider (setup.py extras_require["gemini"])
+langchain-google-genai>=2.0
+
+# IBM watsonx provider (setup.py extras_require["ibm"])
+# Uncomment to enable:
+# langchain-ibm>=0.3

@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from src.config import get_config
 from src.graph import graph
+from src.utils.guardrails import GuardrailsMiddleware
 from src.utils.tracing import get_callback_handler, setup_tracing
 
 # ---------------------------------------------------------------------------
@@ -41,6 +42,7 @@ app = FastAPI(
 _START_TIME = time.time()
 _request_count: int = 0
 
+app.add_middleware(GuardrailsMiddleware)
 setup_tracing(service_name=config.agent_name)
 
 

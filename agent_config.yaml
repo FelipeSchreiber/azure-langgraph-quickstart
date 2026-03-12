@@ -3,7 +3,7 @@ agent_name: "Azure LangGraph Agent"
 deployment: "azure"
 
 llm:
-  provider: "gemini"  # azure | gemini | ibm – swap here to change the LLM backend
+  provider: "azure"  # azure | gemini | ibm – swap here to change the LLM backend
 instructions: |
   You are a helpful AI assistant. Use the available tools to answer user questions accurately.
   When performing calculations or fetching data, always use the appropriate tool.

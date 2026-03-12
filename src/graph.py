@@ -171,12 +171,16 @@ class AgentGraph:
 
     _compiled: Any = None
 
-    async def ainvoke(self, state: Dict[str, Any], config: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    async def ainvoke(
+        self, state: Dict[str, Any], config: Dict[str, Any] | None = None
+    ) -> Dict[str, Any]:
         if self._compiled is None:
             self._compiled = await AgentFactory.create()
         return await self._compiled.ainvoke(state, config=config)
 
-    def invoke(self, state: Dict[str, Any], config: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    def invoke(
+        self, state: Dict[str, Any], config: Dict[str, Any] | None = None
+    ) -> Dict[str, Any]:
         return asyncio.run(self.ainvoke(state, config=config))
 
 

@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from src.config import get_config
 from src.graph import graph
 from src.utils.guardrails import GuardrailsMiddleware
-from src.utils.tracing import get_callback_handler, setup_tracing
+from src.utils.tracing import setup_tracing
 
 # ---------------------------------------------------------------------------
 # App bootstrap

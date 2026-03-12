@@ -1,4 +1,4 @@
-"""ibm.py – IBM watsonx.ai LLM provider."""
+"""ibm.py - IBM watsonx.ai LLM provider."""
 
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ class IBMWatsonxProvider(LLMProvider):
     """Builds a ``ChatWatsonx`` model from environment variables.
 
     Required env vars:
-        WATSONX_API_KEY     – IBM Cloud API key
-        WATSONX_PROJECT_ID  – watsonx.ai project ID
-        WATSONX_URL         – service endpoint, e.g.
+        WATSONX_API_KEY     - IBM Cloud API key
+        WATSONX_PROJECT_ID  - watsonx.ai project ID
+        WATSONX_URL         - service endpoint, e.g.
                               https://us-south.ml.cloud.ibm.com
 
     Optional env vars:
-        WATSONX_MODEL       – model ID, defaults to
+        WATSONX_MODEL       - model ID, defaults to
                               "meta-llama/llama-3-3-70b-instruct"
 
     Install extra:

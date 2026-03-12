@@ -1,4 +1,4 @@
-"""graph.py – Agent factory supporting LangGraph and LangChain frameworks.
+"""graph.py - Agent factory supporting LangGraph and LangChain frameworks.
 
 The ``framework_type`` key in ``agent_config.yaml`` selects the backend:
 
@@ -7,7 +7,7 @@ The ``framework_type`` key in ``agent_config.yaml`` selects the backend:
         START → llm_call → (tools?) → call_tool → llm_call → END
 
     framework_type: langchain
-        ``langchain.agents.create_agent`` – delegates graph construction
+        ``langchain.agents.create_agent`` - delegates graph construction
         to LangChain's built-in tool-calling agent loop.
 
 Both paths return a compiled graph that accepts
@@ -148,7 +148,7 @@ class AgentFactory:
         # 2. LLM
         llm = LLMFactory.create(config.llm.provider, config.temperature, config.top_p)
 
-        # 3. Compile – dispatch on framework_type
+        # 3. Compile - dispatch on framework_type
         if framework == "langchain":
             return cls._compile_langchain(llm, tools, config.instructions)
         else:
@@ -158,7 +158,7 @@ class AgentFactory:
 
 
 # ---------------------------------------------------------------------------
-# Public product – AgentGraph
+# Public product - AgentGraph
 # ---------------------------------------------------------------------------
 
 

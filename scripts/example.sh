@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# example.sh – Demonstrates how to call the /chat endpoint.
+# example.sh - Demonstrates how to call the /chat endpoint.
 # The server must be running locally on port 8000.
 #   uvicorn src.app:app --reload
 

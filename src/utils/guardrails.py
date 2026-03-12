@@ -1,4 +1,4 @@
-"""guardrails.py – Request/response guardrail middleware for the LangGraph agent.
+"""guardrails.py - Request/response guardrail middleware for the LangGraph agent.
 
 Implements a :class:`GuardrailsMiddleware` (Starlette ``BaseHTTPMiddleware``)
 that sits in front of every ``POST /chat`` call and enforces:

@@ -1,4 +1,4 @@
-"""factory.py – LLMFactory: selects and instantiates the right LLM provider.
+"""factory.py - LLMFactory: selects and instantiates the right LLM provider.
 
 Built-in providers
 ------------------

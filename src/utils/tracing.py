@@ -1,4 +1,4 @@
-"""tracing.py – OpenTelemetry backend for the LangGraph agent.
+"""tracing.py - OpenTelemetry backend for the LangGraph agent.
 
 Wires an OTel ``TracerProvider`` into LangChain's callback system so that
 every LLM call, tool invocation, and chain step is recorded as a span.

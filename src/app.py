@@ -1,11 +1,11 @@
-"""app.py – FastAPI application exposing the LangGraph agent.
+"""app.py - FastAPI application exposing the LangGraph agent.
 
 Routes
 ------
-POST /chat          – Send a message and receive the agent's reply.
-GET  /metrics       – Basic runtime metrics (uptime, request count).
-GET  /health/live   – Liveness probe: returns 200 when the process is up.
-GET  /health/ready  – Readiness probe: returns 200 when dependencies are ready.
+POST /chat          - Send a message and receive the agent's reply.
+GET  /metrics       - Basic runtime metrics (uptime, request count).
+GET  /health/live   - Liveness probe: returns 200 when the process is up.
+GET  /health/ready  - Readiness probe: returns 200 when dependencies are ready.
 
 Swagger UI is available at /docs (built into FastAPI by default).
 """
@@ -151,7 +151,7 @@ async def metrics() -> MetricsResponse:
     tags=["Health"],
 )
 async def health_live() -> JSONResponse:
-    """Liveness probe – returns 200 when the process is running."""
+    """Liveness probe - returns 200 when the process is running."""
     return JSONResponse(content={"status": "alive"})
 
 
@@ -161,7 +161,7 @@ async def health_live() -> JSONResponse:
     tags=["Health"],
 )
 async def health_ready() -> JSONResponse:
-    """Readiness probe – checks that the config is loaded and the graph is compiled."""
+    """Readiness probe - checks that the config is loaded and the graph is compiled."""
     try:
         get_config()  # raises if YAML is missing or malformed
         _ = graph       # raises AttributeError if graph failed to compile

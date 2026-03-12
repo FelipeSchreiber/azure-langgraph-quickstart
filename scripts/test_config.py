@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_config.py – Smoke-test the config loader against a local MCP server.
+"""test_config.py - Smoke-test the config loader against a local MCP server.
 
 Usage
 -----
@@ -127,7 +127,7 @@ def test_token_resolution(server: MCPServer) -> str | None:
     if token:
         _ok(f"Bearer token resolved from ${auth.token_env_var}")
     else:
-        _ok("No authentication required – sending requests without credentials")
+        _ok("No authentication required - sending requests without credentials")
     return token
 
 
@@ -146,7 +146,7 @@ def test_server_reachable(server: MCPServer, token: str | None) -> bool:
         _ok(f"GET /health  →  HTTP {resp.status_code}  body={resp.text[:80]!r}")
         return True
     except httpx.ConnectError:
-        _fail("Connection refused – is the server running?")
+        _fail("Connection refused - is the server running?")
         return False
     except Exception as exc:
         _fail(f"Unexpected error: {exc}")
@@ -176,7 +176,7 @@ def test_list_tools(server: MCPServer, token: str | None) -> list:
                 desc = t.get("description", "")
                 _info(f"  • {name}: {desc}")
         else:
-            _ok("Server responded – no tools registered.")
+            _ok("Server responded - no tools registered.")
             tools = []
         return tools
     except httpx.HTTPStatusError as exc:
@@ -195,7 +195,7 @@ def test_call_tool(server: MCPServer, token: str | None, tools: list) -> None:
     print("5. tools/call  (dry-run with first available tool)")
 
     if not tools:
-        _info("No tools to invoke – skipping.")
+        _info("No tools to invoke - skipping.")
         return
 
     first_tool = tools[0]
@@ -247,7 +247,7 @@ def main() -> None:
     cfg = test_config_loads()
 
     if not cfg.mcp.servers:
-        print("\nNo MCP servers defined – nothing to test.")
+        print("\nNo MCP servers defined - nothing to test.")
         sys.exit(0)
 
     exit_code = 0

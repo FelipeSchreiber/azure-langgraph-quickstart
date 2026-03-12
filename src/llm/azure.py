@@ -1,4 +1,4 @@
-"""azure.py – Azure OpenAI LLM provider."""
+"""azure.py - Azure OpenAI LLM provider."""
 
 from __future__ import annotations
 
@@ -13,10 +13,10 @@ class AzureOpenAIProvider(LLMProvider):
     """Builds an ``AzureChatOpenAI`` model from environment variables.
 
     Required env vars:
-        AZURE_OPENAI_DEPLOYMENT  – model deployment name (e.g. "gpt-4o")
-        AZURE_OPENAI_ENDPOINT    – e.g. https://<resource>.cognitiveservices.azure.com/
-        AZURE_OPENAI_API_KEY     – API key
-        AZURE_OPENAI_API_VERSION – optional, defaults to "2024-02-01"
+        AZURE_OPENAI_DEPLOYMENT  - model deployment name (e.g. "gpt-4o")
+        AZURE_OPENAI_ENDPOINT    - e.g. https://<resource>.cognitiveservices.azure.com/
+        AZURE_OPENAI_API_KEY     - API key
+        AZURE_OPENAI_API_VERSION - optional, defaults to "2024-02-01"
     """
 
     def build(self, temperature: float, top_p: float) -> BaseChatModel:

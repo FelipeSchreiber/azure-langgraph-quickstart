@@ -1,4 +1,4 @@
-"""base.py – Abstract base class for LLM providers."""
+"""base.py - Abstract base class for LLM providers."""
 
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ class LLMProvider(ABC):
         """Instantiate and return a ready-to-use LangChain chat model.
 
         Args:
-            temperature: Sampling temperature (0–2).
-            top_p: Nucleus-sampling probability mass (0–1).
+            temperature: Sampling temperature (0-2).
+            top_p: Nucleus-sampling probability mass (0-1).
 
         Returns:
             A ``BaseChatModel`` instance compatible with ``.bind_tools()``.

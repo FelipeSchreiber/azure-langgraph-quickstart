@@ -1,4 +1,4 @@
-"""gemini.py – Google Gemini LLM provider."""
+"""gemini.py - Google Gemini LLM provider."""
 
 from __future__ import annotations
 
@@ -13,10 +13,10 @@ class GeminiProvider(LLMProvider):
     """Builds a ``ChatGoogleGenerativeAI`` model from environment variables.
 
     Required env vars:
-        GOOGLE_API_KEY  – Google AI Studio or Vertex AI API key
+        GOOGLE_API_KEY  - Google AI Studio or Vertex AI API key
 
     Optional env vars:
-        GEMINI_MODEL    – model name, defaults to "gemini-1.5-pro"
+        GEMINI_MODEL    - model name, defaults to "gemini-1.5-pro"
 
     Install extra:
         pip install langchain-google-genai

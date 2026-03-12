@@ -1,4 +1,4 @@
-"""config.py – Helpers to load and expose agent_config.yaml settings.
+"""config.py - Helpers to load and expose agent_config.yaml settings.
 
 YAML schema (current)
 ---------------------
@@ -253,7 +253,7 @@ def load_agent_config(path: str | Path | None = None) -> AgentConfig:
     )
 
 
-# Singleton – loaded once at import time so all modules share the same object.
+# Singleton - loaded once at import time so all modules share the same object.
 _config: Optional[AgentConfig] = None
 
 

@@ -21,6 +21,7 @@ import asyncio
 import logging
 from typing import Annotated, Any, Dict, List
 
+from langchain_core.callbacks import CallbackManager
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import START, StateGraph
@@ -30,6 +31,7 @@ from typing_extensions import TypedDict
 
 from src.config import AgentConfig, get_config
 from src.llm import LLMFactory
+from src.utils.tracing import OTelCallbackHandler
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +100,9 @@ class AgentFactory:
         builder.add_edge(START, "llm_call")
         builder.add_conditional_edges("llm_call", tools_condition)
         builder.add_edge("tools", "llm_call")
-        return builder.compile()
+        graph = builder.compile()
+        graph.callbacks = CallbackManager([OTelCallbackHandler()])
+        return graph
 
     # -- public factory method -----------------------------------------------
 
@@ -137,12 +141,12 @@ class AgentFactory:
 class AgentGraph:
     """Lightweight public handle; delegates construction to AgentFactory."""
 
-    async def ainvoke(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    async def ainvoke(self, state: Dict[str, Any], config: Dict[str, Any] | None = None) -> Dict[str, Any]:
         compiled = await AgentFactory.create()
-        return await compiled.ainvoke(state)
+        return await compiled.ainvoke(state, config=config)
 
-    def invoke(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        return asyncio.run(self.ainvoke(state))
+    def invoke(self, state: Dict[str, Any], config: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        return asyncio.run(self.ainvoke(state, config=config))
 
 
 # Module-level instance imported by app.py

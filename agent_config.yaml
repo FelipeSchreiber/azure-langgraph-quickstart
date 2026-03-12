@@ -1,27 +1,41 @@
-agent_id: "agent-001"
-agent_name: "Azure LangGraph Agent"
-deployment: "azure"
-
-llm:
-  provider: "azure"  # azure | gemini | ibm – swap here to change the LLM backend
-instructions: |
-  You are a helpful AI assistant. Use the available tools to answer user questions accurately.
-  When performing calculations or fetching data, always use the appropriate tool.
-agent_description: "A LangGraph-based agent with multi-server MCP tool support, deployed on Azure."
-temperature: 0.7
-top_p: 0.95
-
-mcp:
-  servers:
-    - name: "local-mcp"
-      description: "Local MCP server for development and testing"
-      transport:
-        type: "http"
-        endpoint: "http://localhost:9000/mcp"
-      authentication:
-        type: "none"  # options: none | bearer | cert
-
+agent_type: react
+agent_id: agent-001
+agent_name: Azure LangGraph Agent
+agent_description: A LangGraph-based agent with multi-server MCP tool support, deployed
+  on Azure.
+framework_type: "langchain"  # langgraph | langchain
 metadata:
-  owner: "team-ai"
-  version: "0.1.0"
-  created_at: "2026-03-11"
+  owner: team-ai
+  version: 0.1.0
+  created_at: '2026-03-11'
+llm:
+  provider: azure
+  temperature: 0.7
+  top_p: 0.95
+prompt:
+  system: 'You are a helpful AI assistant. Use the available tools to answer user
+    questions accurately.
+
+    When performing calculations or fetching data, always use the appropriate tool.'
+  input_variables:
+  - messages
+tools:
+  source: mcp
+  names:
+  - add_two_numbers
+  - get_user_info
+  - send_welcome_email
+  - set_up_office_365_account
+  - configure_laptop
+  - setup_vpn_access
+  - create_system_accounts
+  - greet_test
+  - get_server_status
+  mcp_servers:
+  - name: local-mcp
+    description: Local MCP server for development and testing
+    transport:
+      type: http
+      endpoint: http://localhost:9000/mcp
+    authentication:
+      type: none

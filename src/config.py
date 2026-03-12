@@ -1,4 +1,27 @@
-"""config.py – Helpers to load and expose agent_config.yaml settings."""
+"""config.py – Helpers to load and expose agent_config.yaml settings.
+
+YAML schema (current)
+---------------------
+agent_type:       react | tool_calling          (new)
+agent_id:         str
+agent_name:       str
+agent_description: str
+framework_type:   langgraph | langchain          (default: langgraph)
+metadata:
+  owner / version / created_at
+llm:
+  provider:       azure | gemini | ibm
+  temperature:    float                          (moved from top-level)
+  top_p:          float                          (moved from top-level)
+prompt:
+  system:         str                            (was top-level 'instructions')
+  input_variables: list[str]
+tools:
+  source:         mcp
+  names:          list[str]
+  mcp_servers:                                   (was 'mcp.servers')
+    - name / description / transport / authentication
+"""
 
 from __future__ import annotations
 
@@ -27,7 +50,7 @@ class MCPTransport:
 
 @dataclass
 class MCPAuthentication:
-    type: str = "none"            # "none" | "bearer" | "cert"
+    type: str = "none"                    # "none" | "bearer" | "cert"
     token_env_var: Optional[str] = None   # required when type=bearer
     cert_path: Optional[str] = None       # required when type=cert
     key_path: Optional[str] = None        # required when type=cert
@@ -50,35 +73,81 @@ class MCPServer:
 
 
 @dataclass
-class MCPConfig:
-    servers: List[MCPServer] = field(default_factory=list)
+class LLMConfig:
+    """LLM provider and sampling parameters."""
+    provider: str = "azure"   # azure | gemini | ibm
+    temperature: float = 0.7
+    top_p: float = 0.95
 
 
 @dataclass
-class LLMConfig:
-    """Which LLM provider to use and any provider-level overrides."""
-    provider: str = "azure"  # azure | gemini – extensible via LLMFactory.register()
+class PromptConfig:
+    """System prompt and expected input variable names."""
+    system: str = ""
+    input_variables: List[str] = field(default_factory=lambda: ["messages"])
+
+
+@dataclass
+class ToolsConfig:
+    """Tool source and MCP server list."""
+    source: str = "mcp"
+    names: List[str] = field(default_factory=list)
+    mcp_servers: List[MCPServer] = field(default_factory=list)
 
 
 @dataclass
 class Metadata:
-    owner: str
-    version: str
-    created_at: str
+    owner: str = ""
+    version: str = ""
+    created_at: str = ""
 
 
 @dataclass
 class AgentConfig:
-    agent_id: str
-    agent_name: str
-    deployment: str
-    instructions: str
-    agent_description: str
-    temperature: float
-    top_p: float
-    mcp: MCPConfig
-    metadata: Metadata
+    # ---- identity ----------------------------------------------------------
+    agent_id: str = ""
+    agent_name: str = ""
+    agent_description: str = ""
+    agent_type: str = "react"             # react | tool_calling
+    framework_type: str = "langgraph"     # langgraph | langchain
+
+    # ---- sub-configs -------------------------------------------------------
     llm: LLMConfig = field(default_factory=LLMConfig)
+    prompt: PromptConfig = field(default_factory=PromptConfig)
+    tools: ToolsConfig = field(default_factory=ToolsConfig)
+    metadata: Metadata = field(default_factory=Metadata)
+
+    # ------------------------------------------------------------------ #
+    # Backward-compat properties                                          #
+    # Code that still reads config.instructions / .temperature / .top_p  #
+    # / .mcp continues to work without modification.                      #
+    # ------------------------------------------------------------------ #
+
+    @property
+    def instructions(self) -> str:
+        """Alias for ``prompt.system``."""
+        return self.prompt.system
+
+    @property
+    def temperature(self) -> float:
+        """Alias for ``llm.temperature``."""
+        return self.llm.temperature
+
+    @property
+    def top_p(self) -> float:
+        """Alias for ``llm.top_p``."""
+        return self.llm.top_p
+
+    @property
+    def mcp(self) -> "MCPConfig":
+        """Alias for ``tools`` presented as an MCPConfig for legacy callers."""
+        return MCPConfig(servers=self.tools.mcp_servers)
+
+
+@dataclass
+class MCPConfig:
+    """Legacy wrapper kept for backward compatibility with graph.py callers."""
+    servers: List[MCPServer] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -86,44 +155,9 @@ class AgentConfig:
 # ---------------------------------------------------------------------------
 
 
-def load_agent_config(path: str | Path | None = None) -> AgentConfig:
-    """Load *agent_config.yaml* and return a typed :class:`AgentConfig`.
-
-    Args:
-        path: Explicit path to the YAML file.  When *None* the function
-              looks for ``agent_config.yaml`` next to this file's parent
-              directory, then the current working directory.
-
-    Returns:
-        A fully populated :class:`AgentConfig` instance.
-
-    Raises:
-        FileNotFoundError: When the config file cannot be located.
-        ValueError: When required fields are missing in the YAML.
-    """
-    if path is None:
-        # Search heuristics: repo root (two levels up) → cwd
-        candidates = [
-            Path(__file__).parent.parent / "agent_config.yaml",
-            Path.cwd() / "agent_config.yaml",
-        ]
-        for candidate in candidates:
-            if candidate.is_file():
-                path = candidate
-                break
-        else:
-            raise FileNotFoundError(
-                "agent_config.yaml not found. "
-                f"Searched: {[str(c) for c in candidates]}"
-            )
-
-    with open(path, "r", encoding="utf-8") as fh:
-        raw: dict = yaml.safe_load(fh)
-
-    # --- MCP servers ---
-    mcp_raw = raw.get("mcp", {})
+def _parse_mcp_servers(server_list: list) -> List[MCPServer]:
     servers: List[MCPServer] = []
-    for srv in mcp_raw.get("servers", []):
+    for srv in server_list:
         transport_raw = srv.get("transport", {})
         auth_raw = srv.get("authentication", {})
         servers.append(
@@ -142,8 +176,63 @@ def load_agent_config(path: str | Path | None = None) -> AgentConfig:
                 ) if auth_raw else None,
             )
         )
+    return servers
 
-    # --- Metadata ---
+
+def load_agent_config(path: str | Path | None = None) -> AgentConfig:
+    """Load *agent_config.yaml* and return a typed :class:`AgentConfig`.
+
+    Args:
+        path: Explicit path to the YAML file.  When *None* the function
+              searches ``agent_config.yaml`` next to this file's parent
+              directory, then the current working directory.
+
+    Raises:
+        FileNotFoundError: When the config file cannot be located.
+    """
+    if path is None:
+        candidates = [
+            Path(__file__).parent.parent / "agent_config.yaml",
+            Path.cwd() / "agent_config.yaml",
+        ]
+        for candidate in candidates:
+            if candidate.is_file():
+                path = candidate
+                break
+        else:
+            raise FileNotFoundError(
+                "agent_config.yaml not found. "
+                f"Searched: {[str(c) for c in candidates]}"
+            )
+
+    with open(path, "r", encoding="utf-8") as fh:
+        raw: dict = yaml.safe_load(fh)
+
+    # --- LLM ---------------------------------------------------------------
+    llm_raw = raw.get("llm", {})
+    llm = LLMConfig(
+        provider=llm_raw.get("provider", "azure"),
+        temperature=float(llm_raw.get("temperature", 0.7)),
+        top_p=float(llm_raw.get("top_p", 0.95)),
+    )
+
+    # --- Prompt ------------------------------------------------------------
+    prompt_raw = raw.get("prompt", {})
+    prompt = PromptConfig(
+        system=prompt_raw.get("system", ""),
+        input_variables=prompt_raw.get("input_variables", ["messages"]),
+    )
+
+    # --- Tools / MCP servers -----------------------------------------------
+    tools_raw = raw.get("tools", {})
+    mcp_servers = _parse_mcp_servers(tools_raw.get("mcp_servers", []))
+    tools = ToolsConfig(
+        source=tools_raw.get("source", "mcp"),
+        names=tools_raw.get("names", []),
+        mcp_servers=mcp_servers,
+    )
+
+    # --- Metadata ----------------------------------------------------------
     meta_raw = raw.get("metadata", {})
     metadata = Metadata(
         owner=meta_raw.get("owner", ""),
@@ -151,23 +240,16 @@ def load_agent_config(path: str | Path | None = None) -> AgentConfig:
         created_at=meta_raw.get("created_at", ""),
     )
 
-    # --- LLM provider ---
-    llm_raw = raw.get("llm", {})
-    llm_config = LLMConfig(
-        provider=llm_raw.get("provider", "azure"),
-    )
-
     return AgentConfig(
-        agent_id=raw["agent_id"],
-        agent_name=raw["agent_name"],
-        deployment=raw["deployment"],
-        instructions=raw["instructions"],
-        agent_description=raw["agent_description"],
-        temperature=float(raw.get("temperature", 0.7)),
-        top_p=float(raw.get("top_p", 1.0)),
-        mcp=MCPConfig(servers=servers),
+        agent_id=raw.get("agent_id", ""),
+        agent_name=raw.get("agent_name", ""),
+        agent_description=raw.get("agent_description", ""),
+        agent_type=raw.get("agent_type", "react"),
+        framework_type=raw.get("framework_type", "langgraph"),
+        llm=llm,
+        prompt=prompt,
+        tools=tools,
         metadata=metadata,
-        llm=llm_config,
     )
 
 

@@ -1,41 +1,190 @@
-agent_type: react
+# =============================================================================
+# agent_config.yaml  –  Single configuration file for the Foundry-style Agent
+# =============================================================================
+# All sections are optional unless marked REQUIRED.
+# Environment-variable references use the ${ENV_VAR} syntax in values, but most
+# secrets are resolved via token_env_var / connection_env_var keys so that no
+# secrets ever land in this file.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Identity
+# ---------------------------------------------------------------------------
+agent_type: react                       # react | tool_calling
 agent_id: agent-001
-agent_name: Azure LangGraph Agent
-agent_description: A LangGraph-based agent with multi-server MCP tool support, deployed
-  on Azure.
-framework_type: "langchain"  # langgraph | langchain
+agent_name: Azure LangGraph Foundry Agent
+agent_description: >
+  A LangGraph ReAct agent with MCP + OpenAPI tools, persistent memory
+  checkpointing, RAG retrieval, custom guardrails, and LLM-as-a-judge
+  quality validation.
+framework_type: langgraph               # langgraph (default) | langchain
+
 metadata:
   owner: team-ai
-  version: 0.1.0
-  created_at: '2026-03-11'
+  version: 0.2.0
+  created_at: "2026-03-15"
+
+# ---------------------------------------------------------------------------
+# LLM
+# ---------------------------------------------------------------------------
 llm:
-  provider: azure
+  provider: azure                       # azure | gemini | ibm
   temperature: 0.7
   top_p: 0.95
-prompt:
-  system: 'You are a helpful AI assistant. Use the available tools to answer user
-    questions accurately.
 
-    When performing calculations or fetching data, always use the appropriate tool.'
+# ---------------------------------------------------------------------------
+# System prompt
+# ---------------------------------------------------------------------------
+prompt:
+  system: |
+    You are a helpful AI assistant deployed on Azure.
+    Use the available tools to answer user questions accurately.
+    When performing calculations or fetching data, always use the appropriate tool.
+    When you need background knowledge, use the `retrieve_context` tool first.
   input_variables:
-  - messages
+    - messages
+
+# ---------------------------------------------------------------------------
+# Tools  –  MCP servers AND/OR OpenAPI servers
+# ---------------------------------------------------------------------------
 tools:
-  source: mcp
-  names:
-  - add_two_numbers
-  - get_user_info
-  - send_welcome_email
-  - set_up_office_365_account
-  - configure_laptop
-  - setup_vpn_access
-  - create_system_accounts
-  - greet_test
-  - get_server_status
+
+  # ── MCP servers ──────────────────────────────────────────────────────────
   mcp_servers:
-  - name: local-mcp
-    description: Local MCP server for development and testing
-    transport:
-      type: http
-      endpoint: http://localhost:9000/mcp
-    authentication:
-      type: none
+    - name: local-mcp
+      description: Local MCP server for development and testing
+      transport:
+        type: http
+        endpoint: http://localhost:9000/mcp
+      authentication:
+        type: none                      # none | bearer | cert
+
+    # Example bearer-auth MCP server (uncomment to enable):
+    # - name: remote-mcp
+    #   description: Remote enterprise MCP server
+    #   transport:
+    #     type: http
+    #     endpoint: https://mcp.internal.company.com/mcp
+    #   authentication:
+    #     type: bearer
+    #     token_env_var: REMOTE_MCP_TOKEN
+
+  # ── OpenAPI servers ───────────────────────────────────────────────────────
+  # Each entry fetches an OpenAPI spec and exposes its operations as tools.
+  openapi_servers:
+    - name: internal-api
+      description: Internal REST API exposed via OpenAPI 3.x
+      spec_url: http://localhost:8080/openapi.json   # URL or local file path
+      base_url: http://localhost:8080
+      authentication:
+        type: none                      # none | bearer | api_key | basic
+        # bearer:   token_env_var: INTERNAL_API_TOKEN
+        # api_key:  header_name: X-API-Key, token_env_var: INTERNAL_API_KEY
+        # basic:    username_env_var: API_USER, password_env_var: API_PASS
+
+    # Example external API:
+    # - name: weather-api
+    #   description: OpenWeatherMap REST API
+    #   spec_url: https://api.openweathermap.org/openapi.json
+    #   base_url: https://api.openweathermap.org
+    #   authentication:
+    #     type: api_key
+    #     header_name: X-API-Key
+    #     token_env_var: OPENWEATHER_API_KEY
+
+# ---------------------------------------------------------------------------
+# Memory / Conversation checkpointing
+# ---------------------------------------------------------------------------
+# Persists the full LangGraph state per thread_id (= session_id) so that
+# conversations survive service restarts and scale across replicas.
+# Omit this section entirely or set type: none to run without persistence.
+# ---------------------------------------------------------------------------
+memory:
+  type: none                            # none (default) | memory | sqlite | postgres
+
+  # In-memory (lost on restart, good for local dev):
+  # type: memory
+
+  # SQLite (survives restarts, single-node):
+  # type: sqlite
+  # db_path: /tmp/agent_checkpoints.db
+
+  # PostgreSQL (multi-replica production):
+  # type: postgres
+  # connection_env_var: CHECKPOINT_DB_URL   # postgresql+psycopg://user:pass@host/db
+  # table_name: agent_checkpoints
+
+# ---------------------------------------------------------------------------
+# RAG endpoint
+# ---------------------------------------------------------------------------
+# Exposes a `retrieve_context(query)` tool that hits this endpoint.
+# ---------------------------------------------------------------------------
+rag:
+  enabled: true
+  type: http                            # http | azure_search
+  endpoint: http://localhost:8001/search
+  top_k: 5
+  authentication:
+    type: none                          # none | bearer | api_key
+    # bearer:   token_env_var: RAG_API_TOKEN
+    # api_key:  header_name: X-API-Key, token_env_var: RAG_API_KEY
+
+  # Azure AI Search alternative (uncomment, set type: azure_search):
+  # endpoint: https://<service>.search.windows.net
+  # index_name: knowledge-base
+  # authentication:
+  #   type: api_key
+  #   token_env_var: AZURE_SEARCH_KEY
+
+# ---------------------------------------------------------------------------
+# Guardrails
+# ---------------------------------------------------------------------------
+# Custom regex patterns are merged with the built-in injection / PII rules.
+# ---------------------------------------------------------------------------
+guardrails:
+  max_input_length: 4096
+  block_pii_input: true
+  redact_pii_output: true
+
+  # Additional patterns to BLOCK on inbound messages:
+  custom_input_patterns:
+    - pattern: "drop\\s+table"
+      description: SQL injection – DROP TABLE
+    - pattern: "exec\\s*\\("
+      description: SQL injection – EXEC()
+    - pattern: "<script[^>]*>"
+      description: XSS injection attempt
+    - pattern: "\\bpassword\\s*[=:]"
+      description: Credential leakage in prompt
+
+  # Additional patterns to BLOCK in outbound replies:
+  custom_output_patterns:
+    - pattern: "CONFIDENTIAL"
+      description: Confidential marker in reply
+    - pattern: "BEGIN\\s+(RSA|EC|CERTIFICATE)\\s+PRIVATE"
+      description: Private key material in reply
+
+# ---------------------------------------------------------------------------
+# LLM-as-a-Judge
+# ---------------------------------------------------------------------------
+# When enabled, a judge node scores each final agent response.
+# Responses below `threshold` are either retried (up to `max_retries`) or
+# replaced with a safe fallback.
+# ---------------------------------------------------------------------------
+judge:
+  enabled: false                        # set true to activate
+  # Judge can be a remote scoring service …
+  # endpoint: http://localhost:8090/judge
+  # … or re-use the same Azure OpenAI deployment as the agent:
+  use_agent_llm: true
+  model: gpt-4o                         # ignored when use_agent_llm: true
+  threshold: 0.75                       # 0.0 – 1.0; below → retry / fallback
+  check_output: true
+  max_retries: 2
+  # Scoring criteria sent to the judge LLM
+  criteria: |
+    Rate the following AI response from 0.0 to 1.0 on:
+    1. Factual accuracy and relevance to the user's question.
+    2. Absence of harmful, biased, or policy-violating content.
+    3. Completeness and clarity.
+    Respond with ONLY a JSON object: {"score": <float>, "reason": "<string>"}

@@ -1,19 +1,21 @@
-"""app.py - FastAPI application exposing the LangGraph agent.
+"""app.py - FastAPI application exposing the LangGraph Foundry agent.
 
 Routes
 ------
-POST /chat          - Send a message and receive the agent's reply.
+POST /chat          - Send a message; session_id activates conversation memory.
+GET  /history/{id}  - Retrieve message history for a session (requires memory).
+DELETE /history/{id}- Clear conversation history for a session.
 GET  /metrics       - Basic runtime metrics (uptime, request count).
-GET  /health/live   - Liveness probe: returns 200 when the process is up.
-GET  /health/ready  - Readiness probe: returns 200 when dependencies are ready.
+GET  /health/live   - Liveness probe.
+GET  /health/ready  - Readiness probe.
 
-Swagger UI is available at /docs (built into FastAPI by default).
+Swagger UI is available at /docs.
 """
 
 from __future__ import annotations
 
 import time
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
@@ -34,7 +36,7 @@ config = get_config()
 app = FastAPI(
     title=config.agent_name,
     description=config.agent_description,
-    version=config.metadata.version or "0.1.0",
+    version=config.metadata.version or "0.2.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -57,7 +59,12 @@ class ChatRequest(BaseModel):
 
     model_config = {
         "json_schema_extra": {
-            "examples": [{"message": "What is 2 + 2?", "session_id": "demo-session"}]
+            "examples": [
+                {
+                    "message": "What is the capital of France?",
+                    "session_id": "user-42-session-1",
+                }
+            ]
         }
     }
 
@@ -66,6 +73,17 @@ class ChatResponse(BaseModel):
     reply: str
     session_id: Optional[str] = None
     tool_calls_made: int = 0
+    judge_retries: int = 0
+
+
+class MessageRecord(BaseModel):
+    role: str
+    content: str
+
+
+class HistoryResponse(BaseModel):
+    session_id: str
+    messages: List[MessageRecord]
 
 
 class MetricsResponse(BaseModel):
@@ -73,6 +91,7 @@ class MetricsResponse(BaseModel):
     total_requests: int
     agent_id: str
     agent_name: str
+    memory_type: str
 
 
 # ---------------------------------------------------------------------------
@@ -87,27 +106,28 @@ class MetricsResponse(BaseModel):
     tags=["Agent"],
 )
 async def chat(request: ChatRequest) -> ChatResponse:
-    """Run the LangGraph agent with the provided *message* and return its reply.
+    """Run the LangGraph agent and return its reply.
 
-    The agent may call one or more MCP tools before producing a final answer.
+    When a ``session_id`` is provided the agent uses its configured
+    checkpointer to load prior conversation turns automatically, enabling
+    multi-turn conversations that survive service restarts.
     """
     global _request_count
     _request_count += 1
 
+    initial_state = {
+        "messages": [HumanMessage(content=request.message)],
+    }
+
     try:
-        initial_state = {
-            "messages": [HumanMessage(content=request.message)],
-        }
-        result = await graph.ainvoke(initial_state)
+        result = await graph.ainvoke(initial_state, thread_id=request.session_id)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     messages = result.get("messages", [])
     raw_content = messages[-1].content if messages else ""
 
-    # Newer LangChain versions may return a list of content blocks, e.g.:
-    # [{'type': 'text', 'text': '...'}, {'type': 'image', ...}]
-    # Flatten to a plain string so ChatResponse stays valid.
+    # Flatten list-type content blocks (vision models, etc.)
     if isinstance(raw_content, list):
         reply = " ".join(
             block.get("text", "") if isinstance(block, dict) else str(block)
@@ -116,16 +136,101 @@ async def chat(request: ChatRequest) -> ChatResponse:
     else:
         reply = str(raw_content)
 
-    # Count how many ToolMessages were produced (each represents one tool invocation)
     from langchain_core.messages import ToolMessage
 
     tool_calls_made = sum(1 for m in messages if isinstance(m, ToolMessage))
+    judge_retries = result.get("retry_count", 0)
 
     return ChatResponse(
         reply=reply,
         session_id=request.session_id,
         tool_calls_made=tool_calls_made,
+        judge_retries=judge_retries,
     )
+
+
+@app.get(
+    "/history/{session_id}",
+    response_model=HistoryResponse,
+    summary="Get conversation history for a session",
+    tags=["Agent"],
+)
+async def get_history(session_id: str) -> HistoryResponse:
+    """Return all messages for *session_id* from the checkpointer.
+
+    Requires a persistent memory backend (sqlite or postgres).
+    Returns an empty list when the session is not found or memory is
+    in-process only.
+    """
+    await graph._ensure_compiled()
+
+    checkpointer = graph._checkpointer
+    if checkpointer is None:
+        return HistoryResponse(session_id=session_id, messages=[])
+
+    try:
+        thread_config = {"configurable": {"thread_id": session_id}}
+        # LangGraph checkpointers expose aget() returning the latest checkpoint
+        state_snapshot = await checkpointer.aget(thread_config)
+    except Exception:  # noqa: BLE001
+        return HistoryResponse(session_id=session_id, messages=[])
+
+    if state_snapshot is None:
+        return HistoryResponse(session_id=session_id, messages=[])
+
+    # state_snapshot is a dict (channel_values) at this checkpoint
+    channel_values = getattr(state_snapshot, "channel_values", state_snapshot) or {}
+    raw_messages = channel_values.get("messages", [])
+    records: List[MessageRecord] = []
+    for m in raw_messages:
+        role = type(m).__name__.replace("Message", "").lower()
+        content = m.content if isinstance(m.content, str) else str(m.content)
+        records.append(MessageRecord(role=role, content=content))
+
+    return HistoryResponse(session_id=session_id, messages=records)
+
+
+@app.delete(
+    "/history/{session_id}",
+    summary="Clear conversation history for a session",
+    tags=["Agent"],
+)
+async def delete_history(session_id: str) -> JSONResponse:
+    """Delete all checkpointed state for *session_id*.
+
+    Subsequent messages in that session start fresh.
+    Requires a persistent memory backend; a 501 is returned for in-memory.
+    """
+    await graph._ensure_compiled()
+
+    checkpointer = graph._checkpointer
+    if checkpointer is None:
+        return JSONResponse(
+            status_code=501,
+            content={"error": "no persistent memory backend is configured"},
+        )
+
+    # Try the official async delete API (available in langgraph >= 0.3)
+    try:
+        thread_config = {"configurable": {"thread_id": session_id}}
+        delete_fn = getattr(checkpointer, "adelete_thread", None)
+        if delete_fn is None:
+            # Older API: adelete takes the thread config
+            delete_fn = getattr(checkpointer, "adelete", None)
+        if delete_fn is not None:
+            await delete_fn(thread_config)
+            return JSONResponse(content={"status": "cleared", "session_id": session_id})
+
+        # Fallback: inform user that delete is not supported
+        return JSONResponse(
+            status_code=501,
+            content={
+                "error": "delete not supported by this checkpointer implementation",
+                "hint": "Upgrade langgraph-checkpoint-sqlite / langgraph-checkpoint-postgres",
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get(
@@ -142,6 +247,7 @@ async def metrics() -> MetricsResponse:
         total_requests=_request_count,
         agent_id=cfg.agent_id,
         agent_name=cfg.agent_name,
+        memory_type=cfg.memory.type,
     )
 
 
@@ -151,7 +257,7 @@ async def metrics() -> MetricsResponse:
     tags=["Health"],
 )
 async def health_live() -> JSONResponse:
-    """Liveness probe - returns 200 when the process is running."""
+    """Returns 200 when the process is running."""
     return JSONResponse(content={"status": "alive"})
 
 
@@ -161,10 +267,10 @@ async def health_live() -> JSONResponse:
     tags=["Health"],
 )
 async def health_ready() -> JSONResponse:
-    """Readiness probe - checks that the config is loaded and the graph is compiled."""
+    """Checks that config is loaded and the graph has been initialised."""
     try:
-        get_config()  # raises if YAML is missing or malformed
-        _ = graph       # raises AttributeError if graph failed to compile
+        get_config()
+        _ = graph
         return JSONResponse(content={"status": "ready"})
     except Exception as exc:  # noqa: BLE001
         return JSONResponse(

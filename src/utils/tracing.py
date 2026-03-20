@@ -12,7 +12,8 @@ globally via :func:`get_callback_handler`.
 
 Environment variables
 ---------------------
-OTEL_EXPORTER_OTLP_ENDPOINT   Collector endpoint (default: http://localhost:4317)
+OTEL_EXPORTER_OTLP_ENDPOINT   Collector OTLP HTTP endpoint (default: http://localhost:4318)
+OTEL_EXPORTER_OTLP_PROTOCOL   Export protocol; use http/protobuf for the HTTP exporter
 OTEL_SERVICE_NAME              Service name attached to every span
 """
 
@@ -49,9 +50,9 @@ def setup_tracing(
     Args:
         service_name: Logical name for this service, attached to every span.
                       Overridden by the ``OTEL_SERVICE_NAME`` env var when set.
-        endpoint:     OTLP gRPC collector URL.
+        endpoint:     OTLP HTTP collector URL.
                       Defaults to ``OTEL_EXPORTER_OTLP_ENDPOINT`` or
-                      ``http://localhost:4317``.
+                      ``http://localhost:4318``.
 
     Returns:
         A :class:`opentelemetry.trace.Tracer` bound to *service_name*.

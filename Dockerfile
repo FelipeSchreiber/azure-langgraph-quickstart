@@ -22,6 +22,13 @@ COPY agent_config.yaml ./
 # Make the src package importable
 ENV PYTHONPATH=/app
 
+# ---------- OpenTelemetry defaults ----------
+# OTLP HTTP endpoint pointing to the otel-collector service (docker-compose network).
+# Override at runtime: -e OTEL_EXPORTER_OTLP_ENDPOINT=http://<host>:4318
+ENV OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+ENV OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+ENV OTEL_SERVICE_NAME=langgraph-agent
+
 # ---------- runtime ----------
 EXPOSE 8000
 
